@@ -9,6 +9,8 @@ app.use(express.json())
 app.use(cookieParser())
 
 
+const authRouter = require("./routes/auth.routes")
+
 
 app.get("/", (req, res) => {
     res.send("Ledger Service is up and running")
