@@ -62,7 +62,7 @@ async function createTransaction(req, res) {
             })
         }
 
-        if(isTransactionAlreadyExists.status === "PENDING "){
+        if(isTransactionAlreadyExists.status === "PENDING"){
             return  res.status(200).json({
                 message:"Transaction still processing"
             })
@@ -105,6 +105,7 @@ async function createTransaction(req, res) {
     }
 
     let transaction;
+    let session;
     
     try{
 
@@ -113,30 +114,31 @@ async function createTransaction(req, res) {
          */
     
 
-    const session = await mongoose.startSession();
+    session = await mongoose.startSession();
     session.startTransaction()
 
-     transaction = await transactionModel.create({
+    transaction = new transactionModel({
         fromAccount,
         toAccount,
         amount,
         idempotencyKey,
         status:"PENDING"
-    },{session})
+    })
+    await transaction.save({ session })
 
-    const debitLedgerEntry=await ledgerModel.create({
-        account:fromUserAccount,
+    const debitLedgerEntry = await ledgerModel.create([{
+        account: fromUserAccount._id,
         amount:amount,
         transaction:transaction._id,
         type:"DEBIT"
-    },{ session })
+    }], { session })
 
-    const creditLedgerEntry= await ledgerModel.create({
+    const creditLedgerEntry = await ledgerModel.create([{
         account:toAccount,
         amount:amount,
         transaction:transaction._id,
         type:"CREDIT"
-    },{ session })
+    }], { session })
 
     transaction.status="COMPLETED"
 
@@ -146,8 +148,14 @@ async function createTransaction(req, res) {
 
     session.endSession()
     }catch(err){
-        return res.status(400).json({
-            message: "Transaction is Pending due to some issue, please retry after sometime",
+        if (session?.inTransaction()) {
+            await session.abortTransaction()
+        }
+        session?.endSession()
+        console.error("createTransaction failed:", err)
+        return res.status(500).json({
+            message: "Transaction failed. Please retry after sometime.",
+            error: err.message
         })
 
     }
@@ -186,9 +194,12 @@ async function createInitialFundsTransaction(req, res) {
         })
     }
 
+    console.log("req.user._id =", req.user?._id?.toString())
+
     const fromUserAccount = await accountModel.findOne({
         user: req.user._id
     })
+    console.log(fromUserAccount)
 
     if (!fromUserAccount) {
         return res.status(400).json({

@@ -26,7 +26,7 @@ accountRouter.get("/", authMiddleware.authMiddleware, accountController.getUserA
 /**
  * - GET /api/accounts/balance/:accountId
  */
-// accountRouter.get("/balance/:accountId", authMiddleware.authMiddleware, accountController.getAccountBalanceController)
+accountRouter.get("/balance/:accountId", authMiddleware.authMiddleware, accountController.getAccountBalanceController)
 
 
 
